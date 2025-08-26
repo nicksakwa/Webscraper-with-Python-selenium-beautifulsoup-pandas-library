@@ -17,7 +17,7 @@ if hockey_table:
     df=pd.DataFrame(data_rows, columns=headers)
 
     print("Scraping data successful! Here is the data:")
-    print(df.head())
+    print(df)
     df.to_csv("hockey_data.csv", index=False)
     print("Data saved to hockey_data.csv")
 else:
