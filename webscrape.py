@@ -38,7 +38,7 @@ if hockey_table:
     
     # 9. Printing the first 5 rows of the DataFrame
     print("Scraping successful! Here is the data:")
-    print(df.head())
+    print(df.to_string())
     
     # You can uncomment the line below to save the data to a CSV file
     # df.to_csv('hockey_teams_data.csv', index=False)
