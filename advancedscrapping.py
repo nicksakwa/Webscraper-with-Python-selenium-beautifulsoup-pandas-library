@@ -8,62 +8,89 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 import time
+import traceback
 # ...existing code...
 
-# 1. Set up the Selenium WebDriver
-# This code sets up a headless browser (it runs without a graphical user interface)
-# so it won't open a window on your screen.
-options = webdriver.ChromeOptions()
-options.add_argument("--headless=new")
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
+# 1. Helper to start a Chrome driver with options and return the page_source or raise
+def fetch_page_source(url, headless=True, timeout=30):
+    options = webdriver.ChromeOptions()
+    if headless:
+        # try headless first (faster). If it fails below we retry non-headless.
+        options.add_argument("--headless=new")
+    # add some stability options and a realistic user-agent
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0 Safari/537.36")
+    # create driver (assumes chromedriver is on PATH)
+    driver = webdriver.Chrome(options=options)
+    page_source = None
+    try:
+        driver.get(url)
+        wait = WebDriverWait(driver, timeout, poll_frequency=0.5)
+        # prefer waiting for actual rows, fallback to wrapper
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.p-datatable-wrapper table tbody tr")))
+        except TimeoutException:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.p-datatable-wrapper")))
+        page_source = driver.page_source
+        return page_source
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
-# Ensure your chromedriver is correctly set up, you may need to specify a path
-# For example: service = Service('/path/to/your/chromedriver')
-driver = webdriver.Chrome(options=options)
-
-# 2. Navigate to the URL
+# 2. Try headless, then fall back to headed if needed, always save debug HTML on failure
 url = "https://www.itcbenchmarking.org/bso-directory"
 print("Navigating to the website...")
-driver.get(url)
-
-# 3. Wait for the dynamic content (the table) to load
-# This is the crucial part for dynamic websites.
-# We'll wait until a specific element (the table with a certain class) is present on the page.
-print("Waiting for the table to load...")
-wait = WebDriverWait(driver, 20, poll_frequency=0.5)  # increased timeout and polling
-
+page_source = None
 try:
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div.p-datatable-wrapper')))
+    try:
+        page_source = fetch_page_source(url, headless=True, timeout=30)
+    except TimeoutException:
+        # headless timed out, retry with headed browser for debugging/richer rendering
+        print("Headless run timed out — retrying with headed browser (visible).")
+        page_source = fetch_page_source(url, headless=False, timeout=45)
+except WebDriverException as e:
+    # Save whatever we have and raise a clearer error
+    page_source = page_source or ""
+    with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
+        f.write(page_source)
+    raise RuntimeError(f"WebDriver error while loading page: {e}\nSaved debug HTML to advancedscrapping_debug_page.html") from e
 except TimeoutException:
-    driver.quit()
-    raise RuntimeError("Timed out waiting for the table to load. The page may have changed or network is slow.")
+    # Save debug HTML and raise
+    with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
+        f.write(page_source or "")
+    raise RuntimeError("Timed out waiting for the table to load. Saved page to advancedscrapping_debug_page.html.")
+except Exception:
+    # ensure debug HTML saved for unknown failures
+    with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
+        f.write(page_source or "")
+    raise
 
-# 4. Get the complete page source after it has fully loaded
-page_source = driver.page_source
-
-# 5. Quit the browser session to free up resources
-driver.quit()
-
-# 6. Use BeautifulSoup to parse the page source
+# 3. Use BeautifulSoup to parse the page source
 print("Parsing the HTML content...")
-soup = BeautifulSoup(page_source, 'html.parser')
+soup = BeautifulSoup(page_source or "", 'html.parser')
 
-# 7. Find the table containing the directory data
+# ...existing code...
 table_div = soup.find('div', class_='p-datatable-wrapper')
 if table_div is None:
-    raise RuntimeError("Could not find the 'div.p-datatable-wrapper' element in the page HTML.")
+    # Save debug HTML (if not already saved) and raise
+    with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
+        f.write(page_source or "")
+    raise RuntimeError("Could not find the 'div.p-datatable-wrapper' element in the page HTML. Saved debug HTML.")
 
 table = table_div.find('table')
 if table is None:
-    raise RuntimeError("Could not find a <table> inside the 'div.p-datatable-wrapper' element.")
+    with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
+        f.write(page_source or "")
+    raise RuntimeError("Could not find a <table> inside the 'div.p-datatable-wrapper' element. Saved debug HTML.")
 
+# ...existing code...
 # 8. Extract headers and rows
 print("Extracting data...")
 thead = table.find('thead')
-if thead is None:
-    raise RuntimeError("Table does not contain a thead element; table structure may have changed.")
-headers = [th.get_text(strip=True) for th in thead.find_all('th')]
+headers = [th.get_text(strip=True) for th in thead.find_all('th')] if thead else []
 
 data_rows = []
 tbody = table.find('tbody') or table
@@ -72,23 +99,11 @@ for row in tbody.find_all('tr'):
     cells = row.find_all('td')
     if not cells:
         continue
-    # Build a dict mapping headers to cell values (handles missing/padded cells)
     if headers:
         row_dict = {headers[i]: (cells[i].get_text(strip=True) if i < len(cells) else "") for i in range(len(headers))}
         data_rows.append(row_dict)
     else:
-        # fallback to list if no headers were found
         row_data = [cell.get_text(strip=True) for cell in cells]
         data_rows.append(row_data)
 
-# 9. Create a pandas DataFrame
-if data_rows and isinstance(data_rows[0], dict):
-    df = pd.DataFrame(data_rows)
-else:
-    df = pd.DataFrame(data_rows, columns=headers if headers else None)
-
-# ...existing code...
-print("Scraping complete!")
-print("\nFirst 5 rows of the scraped data:")
-print(df.to_string())
 # ...existing code...
