@@ -20,6 +20,10 @@ Before diving into this repository, ensure you have the following installed:
     ```bash
     pip install beautifulsoup
     ```
+4.  **Selenium:** Install the library using pip in your bash terminal or your directory:
+    ```bash
+    pip install selenium 
+    ```
 
 ## How to Run Examples
 
