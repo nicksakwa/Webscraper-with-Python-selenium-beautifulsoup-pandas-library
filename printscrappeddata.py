@@ -1,12 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-
 url="https://www.scrapethissite.com/pages/forms/?per_page=100"
 
 response= requests.get(url)
 soup= BeautifulSoup(response.text, 'html.parser')
 hockey_table=soup.find('table', class_='table')
+
 if hockey_table:
     headers=[header.get_text(strip=True) for header in hockey_table.find_all('th')]
     data_rows= []
@@ -20,6 +20,7 @@ if hockey_table:
     print(df.to_string())
     df.to_csv("hockey_data.csv", index=False)
     print("Data saved to hockey_data.csv")
+
 else:
     print("Error: Hockey table not found.")
     print("Please check the website structure or the class names used in the scraper.")

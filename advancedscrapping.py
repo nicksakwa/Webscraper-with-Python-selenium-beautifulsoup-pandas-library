@@ -1,4 +1,3 @@
-# ...existing code...
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -9,13 +8,11 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 import time
 import traceback
-# ...existing code...
 
 # 1. Helper to start a Chrome driver with options and return the page_source or raise
 def fetch_page_source(url, headless=True, timeout=30):
     options = webdriver.ChromeOptions()
     if headless:
-        # try headless first (faster). If it fails below we retry non-headless.
         options.add_argument("--headless=new")
     # add some stability options and a realistic user-agent
     options.add_argument("--no-sandbox")
@@ -41,41 +38,34 @@ def fetch_page_source(url, headless=True, timeout=30):
             pass
 
 # 2. Try headless, then fall back to headed if needed, always save debug HTML on failure
-url = "https://www.itcbenchmarking.org/bso-directory"
+url = "https://www.scrapethissite.com/pages/forms/?per_page=100"
 print("Navigating to the website...")
 page_source = None
 try:
     try:
         page_source = fetch_page_source(url, headless=True, timeout=30)
     except TimeoutException:
-        # headless timed out, retry with headed browser for debugging/richer rendering
         print("Headless run timed out — retrying with headed browser (visible).")
         page_source = fetch_page_source(url, headless=False, timeout=45)
 except WebDriverException as e:
-    # Save whatever we have and raise a clearer error
     page_source = page_source or ""
     with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
         f.write(page_source)
     raise RuntimeError(f"WebDriver error while loading page: {e}\nSaved debug HTML to advancedscrapping_debug_page.html") from e
 except TimeoutException:
-    # Save debug HTML and raise
     with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
         f.write(page_source or "")
     raise RuntimeError("Timed out waiting for the table to load. Saved page to advancedscrapping_debug_page.html.")
 except Exception:
-    # ensure debug HTML saved for unknown failures
     with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
         f.write(page_source or "")
     raise
 
-# 3. Use BeautifulSoup to parse the page source
 print("Parsing the HTML content...")
 soup = BeautifulSoup(page_source or "", 'html.parser')
 
-# ...existing code...
 table_div = soup.find('div', class_='p-datatable-wrapper')
 if table_div is None:
-    # Save debug HTML (if not already saved) and raise
     with open("advancedscrapping_debug_page.html", "w", encoding="utf-8") as f:
         f.write(page_source or "")
     raise RuntimeError("Could not find the 'div.p-datatable-wrapper' element in the page HTML. Saved debug HTML.")
@@ -86,8 +76,6 @@ if table is None:
         f.write(page_source or "")
     raise RuntimeError("Could not find a <table> inside the 'div.p-datatable-wrapper' element. Saved debug HTML.")
 
-# ...existing code...
-# 8. Extract headers and rows
 print("Extracting data...")
 thead = table.find('thead')
 headers = [th.get_text(strip=True) for th in thead.find_all('th')] if thead else []
@@ -105,5 +93,3 @@ for row in tbody.find_all('tr'):
     else:
         row_data = [cell.get_text(strip=True) for cell in cells]
         data_rows.append(row_data)
-
-# ...existing code...
