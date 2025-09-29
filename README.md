@@ -24,6 +24,11 @@ Before diving into this repository, ensure you have the following installed:
     ```bash
     pip install selenium 
     ```
+5.  Clone the repository you created earlier.
+
+   ```sh
+   git clone Webscraper-with-Python-selenium-beautifulsoup-pandas-library/
+   ```
 
 ## How to Run Examples
 
