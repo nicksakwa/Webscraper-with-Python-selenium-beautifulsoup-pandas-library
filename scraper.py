@@ -1,8 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-url="https://www.scrapethissite.com/pages/forms/?per_page=100"
 
+url="https://www.scrapethissite.com/pages/forms/?per_page=100"
 response= requests.get(url)
 soup= BeautifulSoup(response.text, 'html.parser')
 hockey_table=soup.find('table', class_='table')
